@@ -429,7 +429,7 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <Dashboard habits={state.habits} />
+              <Dashboard habits={state.habits} userName={session?.user?.email || 'Guest User'} />
             )}
           </>
         )}
