@@ -10,7 +10,7 @@ import { AppState, Habit, HabitCategory } from './types';
 import { getCoachInsights } from './services/gemini';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
 import * as htmlToImage from 'html-to-image';
-import { User, Session } from '@supabase/supabase-js';
+import { Session } from '@supabase/supabase-js';
 
 const LOCAL_STORAGE_KEY = 'zenhabit_2026_data';
 
@@ -19,12 +19,15 @@ const App: React.FC = () => {
   const is2026 = now.getFullYear() === 2026;
   const realWorldMonth = now.getMonth();
 
-  // Session and Auth State
+  // 1. Session and Gatekeeping State
   const [session, setSession] = useState<Session | null>(null);
+  const [isGuest, setIsGuest] = useState(() => {
+    return !hasSupabaseConfig && localStorage.getItem('zen_guest_active') === 'true';
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
-  // App Content State
+  // 2. App Content State
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
@@ -64,15 +67,19 @@ const App: React.FC = () => {
       return;
     }
 
-    // 1. Get initial session
+    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsAuthLoading(false);
     });
 
-    // 2. Listen for auth changes
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (!session) {
+        setIsGuest(false);
+        localStorage.removeItem('zen_guest_active');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -98,7 +105,7 @@ const App: React.FC = () => {
     } else if (data && data.length > 0) {
       setState(prev => ({ ...prev, habits: data }));
     } else {
-      // Push local data if cloud is empty for a new user
+      // Seed cloud with local habits if new user
       const { data: inserted, error: insertError } = await supabase
         .from('habits')
         .insert(state.habits.map(h => ({ ...h, id: undefined, user_id: userId })))
@@ -132,7 +139,6 @@ const App: React.FC = () => {
         .from('habits')
         .update({ data: newData })
         .eq('id', habitId);
-
       if (error) console.error('Sync error:', error);
     }
     setIsSynced(true);
@@ -185,8 +191,16 @@ const App: React.FC = () => {
   };
 
   const handleSignOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    setIsGuest(false);
+    localStorage.removeItem('zen_guest_active');
+  };
+
+  const handleEnterAsGuest = () => {
+    setIsGuest(true);
+    localStorage.setItem('zen_guest_active', 'true');
   };
 
   const goToToday = () => {
@@ -266,6 +280,7 @@ const App: React.FC = () => {
     }
   };
 
+  // Auth Splash
   if (isAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -277,9 +292,9 @@ const App: React.FC = () => {
     );
   }
 
-  // Auth Guard: If cloud config exists but no session, force login
-  if (hasSupabaseConfig && !session) {
-    return <LoginPage />;
+  // Gateway: If not authenticated and not explicitly in guest mode, show LoginPage
+  if (!session && !isGuest) {
+    return <LoginPage onGuestMode={handleEnterAsGuest} />;
   }
 
   return (
@@ -293,9 +308,9 @@ const App: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">ZenHabit 2026</h1>
-                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${!hasSupabaseConfig ? 'bg-slate-100 text-slate-500' : isSynced ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600 animate-pulse'}`}>
-                  <i className={`fa-solid ${!hasSupabaseConfig ? 'fa-hard-drive' : isSynced ? 'fa-cloud-check' : 'fa-arrows-rotate'}`}></i>
-                  {!hasSupabaseConfig ? 'Local Storage' : isSynced ? 'Cloud Synced' : 'Syncing'}
+                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${!session ? 'bg-slate-100 text-slate-500' : isSynced ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600 animate-pulse'}`}>
+                  <i className={`fa-solid ${!session ? 'fa-hard-drive' : isSynced ? 'fa-cloud-check' : 'fa-arrows-rotate'}`}></i>
+                  {!session ? 'Local Mode' : isSynced ? 'Cloud Synced' : 'Syncing'}
                 </div>
               </div>
               <p className="text-xs text-slate-400 font-medium">{session?.user ? session.user.email : 'Guest Session'}</p>
@@ -314,11 +329,9 @@ const App: React.FC = () => {
                 <span className="text-lg font-black text-emerald-600">{annualProgress.toFixed(1)}%</span>
               </div>
             </div>
-            {session && (
-              <button onClick={handleSignOut} className="p-2.5 text-slate-400 hover:text-rose-600 transition-colors" title="Sign Out">
-                <i className="fa-solid fa-right-from-bracket"></i>
-              </button>
-            )}
+            <button onClick={handleSignOut} className="p-2.5 text-slate-400 hover:text-rose-600 transition-colors" title="Sign Out">
+              <i className="fa-solid fa-right-from-bracket"></i>
+            </button>
           </div>
         </div>
       </header>
