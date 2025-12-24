@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { HabitGrid } from './components/HabitGrid';
 import { Dashboard } from './components/Dashboard';
-import { SummaryChart } from './components/SummaryChart';
 import { HabitModal } from './components/HabitModal';
 import { LoginPage } from './components/LoginPage';
 import { INITIAL_HABITS, MONTHS, MONTH_DAYS } from './constants';
@@ -378,29 +377,24 @@ const App: React.FC = () => {
                       isExporting={isExporting}
                     />
                     
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-10">
-                      <div className="col-span-1">
-                        <SummaryChart habits={state.habits} monthIndex={state.currentMonth} />
+                    <div className="space-y-4 sm:space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                        <div className="bg-emerald-50/50 p-6 sm:p-8 rounded-[24px] sm:rounded-[40px] border border-emerald-100">
+                          <h4 className="font-black text-emerald-700 mb-2 text-[10px] sm:text-xs uppercase tracking-widest">Monthly Wins</h4>
+                          <p className="text-xs sm:text-sm text-slate-700 italic leading-relaxed">{currentReflection.wins || "No wins logged yet."}</p>
+                        </div>
+                        <div className="bg-indigo-50/50 p-6 sm:p-8 rounded-[24px] sm:rounded-[40px] border border-indigo-100">
+                          <h4 className="font-black text-indigo-700 mb-2 text-[10px] sm:text-xs uppercase tracking-widest">Opportunities</h4>
+                          <p className="text-xs sm:text-sm text-slate-700 italic leading-relaxed">{currentReflection.improvements || "No improvements noted yet."}</p>
+                        </div>
                       </div>
-                      <div className="col-span-1 lg:col-span-2 space-y-4 sm:space-y-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                          <div className="bg-emerald-50/50 p-6 sm:p-8 rounded-[24px] sm:rounded-[40px] border border-emerald-100">
-                            <h4 className="font-black text-emerald-700 mb-2 text-[10px] sm:text-xs uppercase tracking-widest">Monthly Wins</h4>
-                            <p className="text-xs sm:text-sm text-slate-700 italic leading-relaxed">{currentReflection.wins || "No wins logged yet."}</p>
-                          </div>
-                          <div className="bg-indigo-50/50 p-6 sm:p-8 rounded-[24px] sm:rounded-[40px] border border-indigo-100">
-                            <h4 className="font-black text-indigo-700 mb-2 text-[10px] sm:text-xs uppercase tracking-widest">Opportunities</h4>
-                            <p className="text-xs sm:text-sm text-slate-700 italic leading-relaxed">{currentReflection.improvements || "No improvements noted yet."}</p>
+                      {coachResponse && (
+                        <div className="bg-slate-900 p-6 sm:p-10 rounded-[24px] sm:rounded-[48px] text-indigo-50 text-xs sm:text-sm leading-relaxed border-4 border-indigo-500/20 shadow-2xl overflow-x-auto">
+                          <div className="prose prose-invert prose-indigo prose-xs sm:prose-sm max-w-none">
+                            {coachResponse}
                           </div>
                         </div>
-                        {coachResponse && (
-                          <div className="bg-slate-900 p-6 sm:p-10 rounded-[24px] sm:rounded-[48px] text-indigo-50 text-xs sm:text-sm leading-relaxed border-4 border-indigo-500/20 shadow-2xl overflow-x-auto">
-                            <div className="prose prose-invert prose-indigo prose-xs sm:prose-sm max-w-none">
-                              {coachResponse}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
