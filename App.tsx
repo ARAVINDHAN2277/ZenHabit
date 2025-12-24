@@ -10,7 +10,7 @@ import { AppState, Habit, HabitCategory } from './types';
 import { getCoachInsights } from './services/gemini';
 import { supabase, hasSupabaseConfig } from './supabaseClient';
 import * as htmlToImage from 'html-to-image';
-import { User } from '@supabase/supabase-js';
+import { User, Session } from '@supabase/supabase-js';
 
 const LOCAL_STORAGE_KEY = 'zenhabit_2026_data';
 
@@ -19,12 +19,13 @@ const App: React.FC = () => {
   const is2026 = now.getFullYear() === 2026;
   const realWorldMonth = now.getMonth();
 
-  const [user, setUser] = useState<User | null>(null);
+  // Session and Auth State
+  const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
+  // App Content State
   const [state, setState] = useState<AppState>(() => {
-    // Try to load from local storage initially for fast boot
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       try {
@@ -56,26 +57,34 @@ const App: React.FC = () => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  // Check Auth State
+  // Unified Session Management
   useEffect(() => {
     if (!supabase) {
       setIsAuthLoading(false);
       return;
     }
 
+    // 1. Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      setSession(session);
       setIsAuthLoading(false);
     });
 
+    // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      setSession(session);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch Habits from Supabase
+  // Fetch habits when user/session is available
+  useEffect(() => {
+    if (session?.user) {
+      fetchHabits(session.user.id);
+    }
+  }, [session]);
+
   const fetchHabits = async (userId: string) => {
     if (!supabase) return;
     setIsDataLoading(true);
@@ -89,7 +98,7 @@ const App: React.FC = () => {
     } else if (data && data.length > 0) {
       setState(prev => ({ ...prev, habits: data }));
     } else {
-      // If cloud is empty, try to push local habits to cloud
+      // Push local data if cloud is empty for a new user
       const { data: inserted, error: insertError } = await supabase
         .from('habits')
         .insert(state.habits.map(h => ({ ...h, id: undefined, user_id: userId })))
@@ -102,12 +111,6 @@ const App: React.FC = () => {
     setIsDataLoading(false);
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchHabits(user.id);
-    }
-  }, [user]);
-
   const handleToggle = async (habitId: string, dayIndex: number) => {
     const habitIndex = state.habits.findIndex(h => h.id === habitId);
     if (habitIndex === -1) return;
@@ -118,15 +121,13 @@ const App: React.FC = () => {
     newMonthData[dayIndex] = !newMonthData[dayIndex];
     newData[state.currentMonth] = newMonthData;
 
-    // Optimistic Update (Local first)
     setIsSynced(false);
     setState(prev => ({
       ...prev,
       habits: prev.habits.map(h => h.id === habitId ? { ...h, data: newData } : h)
     }));
 
-    // Cloud Sync if available
-    if (supabase && user && habit.id.length > 10) { // UUIDs are long, local IDs like '1' are short
+    if (supabase && session?.user && habit.id.length > 10) {
       const { error } = await supabase
         .from('habits')
         .update({ data: newData })
@@ -134,29 +135,27 @@ const App: React.FC = () => {
 
       if (error) console.error('Sync error:', error);
     }
-    
     setIsSynced(true);
   };
 
   const handleAddHabit = async (name: string, category: HabitCategory) => {
-    const newHabit: Partial<Habit> = {
+    const newHabitData: Partial<Habit> = {
       name,
       category,
       data: MONTH_DAYS.map(days => Array(days).fill(false))
     };
 
-    if (supabase && user) {
+    if (supabase && session?.user) {
       const { data, error } = await supabase
         .from('habits')
-        .insert([{ ...newHabit, user_id: user.id }])
+        .insert([{ ...newHabitData, user_id: session.user.id }])
         .select();
 
       if (!error && data) {
         setState(prev => ({ ...prev, habits: [...prev.habits, data[0]] }));
       }
     } else {
-      // Local fallback
-      const localHabit = { ...newHabit, id: Math.random().toString(36).substr(2, 9) } as Habit;
+      const localHabit = { ...newHabitData, id: Math.random().toString(36).substr(2, 9) } as Habit;
       setState(prev => ({ ...prev, habits: [...prev.habits, localHabit] }));
     }
     setIsHabitModalOpen(false);
@@ -168,7 +167,7 @@ const App: React.FC = () => {
       habits: prev.habits.map(h => h.id === id ? { ...h, name, category } : h)
     }));
 
-    if (supabase && user && id.length > 10) {
+    if (supabase && session?.user && id.length > 10) {
       await supabase.from('habits').update({ name, category }).eq('id', id);
     }
     setEditingHabit(null);
@@ -180,7 +179,7 @@ const App: React.FC = () => {
       habits: prev.habits.filter(h => h.id !== id)
     }));
 
-    if (supabase && user && id.length > 10) {
+    if (supabase && session?.user && id.length > 10) {
       await supabase.from('habits').delete().eq('id', id);
     }
   };
@@ -278,8 +277,8 @@ const App: React.FC = () => {
     );
   }
 
-  // If Supabase is configured but user is not logged in, show login page
-  if (hasSupabaseConfig && !user) {
+  // Auth Guard: If cloud config exists but no session, force login
+  if (hasSupabaseConfig && !session) {
     return <LoginPage />;
   }
 
@@ -299,7 +298,7 @@ const App: React.FC = () => {
                   {!hasSupabaseConfig ? 'Local Storage' : isSynced ? 'Cloud Synced' : 'Syncing'}
                 </div>
               </div>
-              <p className="text-xs text-slate-400 font-medium">{user ? user.email : 'Guest Session'}</p>
+              <p className="text-xs text-slate-400 font-medium">{session?.user ? session.user.email : 'Guest Session'}</p>
             </div>
           </div>
 
@@ -315,7 +314,7 @@ const App: React.FC = () => {
                 <span className="text-lg font-black text-emerald-600">{annualProgress.toFixed(1)}%</span>
               </div>
             </div>
-            {user && (
+            {session && (
               <button onClick={handleSignOut} className="p-2.5 text-slate-400 hover:text-rose-600 transition-colors" title="Sign Out">
                 <i className="fa-solid fa-right-from-bracket"></i>
               </button>
