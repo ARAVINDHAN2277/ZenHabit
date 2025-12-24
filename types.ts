@@ -3,9 +3,11 @@ export type HabitCategory = 'Health' | 'Mind' | 'Career' | 'Personal';
 
 export interface Habit {
   id: string;
+  user_id?: string;
   name: string;
   category: HabitCategory;
   data: boolean[][]; // [monthIndex][dayIndex]
+  created_at?: string;
 }
 
 export interface MonthlyReflection {
