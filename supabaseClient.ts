@@ -1,17 +1,17 @@
+
 import { createClient } from '@supabase/supabase-js';
 
-// Vite exposes environment variables through import.meta.env
-// Variables must be prefixed with VITE_ to be accessible in the browser
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Use process.env as defined in vite.config.ts
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-// Check if variables are properly loaded from the environment
+// Check if variables are properly loaded
 const isConfigured = !!supabaseUrl && !!supabaseAnonKey;
 
 if (!isConfigured) {
-  console.error(
-    "Supabase configuration missing! " +
-    "Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file or Vercel dashboard."
+  console.warn(
+    "Supabase configuration missing or incomplete. " +
+    "Cloud sync will be disabled. Using local storage mode."
   );
 }
 
