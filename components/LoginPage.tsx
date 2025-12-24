@@ -13,27 +13,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestMode }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
-
     setLoading(true);
     setError(null);
+    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+    if (loginError) setError(loginError.message);
+    setLoading(false);
+  };
 
-    try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        alert('Check your email for the confirmation link!');
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during authentication');
-    } finally {
-      setLoading(false);
+  const handleSignUp = async () => {
+    if (!supabase) return;
+    setLoading(true);
+    setError(null);
+    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    if (signUpError) {
+      setError(signUpError.message);
+    } else {
+      alert('Sign up successful! Please check your email for a confirmation link, then you can sign in.');
+      setIsSignUp(false);
     }
+    setLoading(false);
   };
 
   return (
@@ -44,11 +45,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestMode }) => {
             <i className="fa-solid fa-leaf text-3xl"></i>
           </div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-            {hasSupabaseConfig ? (isSignUp ? 'Join ZenHabit' : 'Welcome to ZenHabit') : 'ZenHabit 2026'}
+            {hasSupabaseConfig ? (isSignUp ? 'Create Account' : 'ZenHabit Login') : 'ZenHabit 2026'}
           </h2>
           <p className="text-slate-500 text-sm font-medium">
             {hasSupabaseConfig 
-              ? (isSignUp ? 'Start your journey to better habits today.' : 'Your 2026 growth continues here.')
+              ? (isSignUp ? 'Start your high-performance year today.' : 'Welcome back to your productivity sanctuary.')
               : 'The ultimate habit tracking experience.'
             }
           </p>
@@ -62,14 +63,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestMode }) => {
         )}
 
         {hasSupabaseConfig ? (
-          <form onSubmit={handleAuth} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
               <input
                 type="email"
                 required
                 className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-500 transition-all text-sm outline-none"
-                placeholder="name@example.com"
+                placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -81,41 +82,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestMode }) => {
                 type="password"
                 required
                 className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-500 transition-all text-sm outline-none"
-                placeholder="••••••••"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
 
             <div className="flex flex-col gap-4 pt-2">
-              <div className="flex gap-4">
-                {isSignUp ? (
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 text-sm"
-                  >
-                    {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Create Account'}
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-1 py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 text-sm"
-                    >
-                      {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Sign In'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsSignUp(true)}
-                      className="flex-1 py-4 bg-white text-indigo-600 border-2 border-indigo-600 font-black rounded-2xl hover:bg-indigo-50 transition-all active:scale-95 text-sm"
-                    >
-                      Sign Up
-                    </button>
-                  </>
-                )}
-              </div>
+              {isSignUp ? (
+                <button
+                  type="button"
+                  onClick={handleSignUp}
+                  disabled={loading}
+                  className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 text-sm"
+                >
+                  {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Create Account'}
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 text-sm"
+                >
+                  {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Sign In'}
+                </button>
+              )}
               
               <div className="relative flex items-center py-2">
                 <div className="flex-grow border-t border-slate-100"></div>
@@ -136,7 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestMode }) => {
           <div className="space-y-6">
             <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl text-[10px] leading-relaxed text-amber-700 font-medium">
               <i className="fa-solid fa-triangle-exclamation mr-1.5"></i>
-              Cloud Sync is currently unavailable. Your data will be stored safely in this browser's Local Storage.
+              Cloud Sync is unavailable because SUPABASE_URL and SUPABASE_ANON_KEY are missing. Your data will be stored locally.
             </div>
             <button
               onClick={onGuestMode}

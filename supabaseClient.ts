@@ -1,25 +1,21 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// Safe access to environment variables defined by Vite or the environment
-const getEnv = (key: string): string => {
-  try {
-    // Check for process.env (Vite 'define' replacement)
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-      return process.env[key] as string;
-    }
-  } catch (e) {}
-  return '';
-};
+// Vite exposes environment variables through import.meta.env
+// Variables must be prefixed with VITE_ to be accessible in the browser
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
-
-// A simple check: if both exist as non-empty strings, we can attempt to connect.
+// Check if variables are properly loaded from the environment
 const isConfigured = !!supabaseUrl && !!supabaseAnonKey;
 
-// Export the client. If not configured, we export null.
-// The App handles the null case by falling back to localStorage.
+if (!isConfigured) {
+  console.error(
+    "Supabase configuration missing! " +
+    "Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file or Vercel dashboard."
+  );
+}
+
+// Export a singleton instance of the Supabase client
 export const supabase = isConfigured 
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;

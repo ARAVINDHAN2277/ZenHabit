@@ -19,15 +19,15 @@ const App: React.FC = () => {
   const is2026 = now.getFullYear() === 2026;
   const realWorldMonth = now.getMonth();
 
-  // 1. Session and Gatekeeping State
+  // 1. Session and Auth State
   const [session, setSession] = useState<Session | null>(null);
   const [isGuest, setIsGuest] = useState(() => {
-    return !hasSupabaseConfig && localStorage.getItem('zen_guest_active') === 'true';
+    return localStorage.getItem('zen_guest_active') === 'true';
   });
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
-  // 2. App Content State
+  // 2. Main App State (Habits and Progress)
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
@@ -60,20 +60,20 @@ const App: React.FC = () => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  // Unified Session Management
+  // Auth Session Management
   useEffect(() => {
     if (!supabase) {
-      setIsAuthLoading(false);
+      setLoading(false);
       return;
     }
 
-    // Get initial session
+    // 1. Get initial session on load
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setIsAuthLoading(false);
+      setLoading(false);
     });
 
-    // Listen for auth changes
+    // 2. Listen for any auth state changes (login, logout, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (!session) {
@@ -85,7 +85,7 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch habits when user/session is available
+  // Fetch habits from database when user is authenticated
   useEffect(() => {
     if (session?.user) {
       fetchHabits(session.user.id);
@@ -105,7 +105,7 @@ const App: React.FC = () => {
     } else if (data && data.length > 0) {
       setState(prev => ({ ...prev, habits: data }));
     } else {
-      // Seed cloud with local habits if new user
+      // For new accounts, seed the cloud with initial or existing local habits
       const { data: inserted, error: insertError } = await supabase
         .from('habits')
         .insert(state.habits.map(h => ({ ...h, id: undefined, user_id: userId })))
@@ -118,6 +118,7 @@ const App: React.FC = () => {
     setIsDataLoading(false);
   };
 
+  // Helper Functions for Habit Management
   const handleToggle = async (habitId: string, dayIndex: number) => {
     const habitIndex = state.habits.findIndex(h => h.id === habitId);
     if (habitIndex === -1) return;
@@ -139,7 +140,7 @@ const App: React.FC = () => {
         .from('habits')
         .update({ data: newData })
         .eq('id', habitId);
-      if (error) console.error('Sync error:', error);
+      if (error) console.error('Cloud Sync Error:', error);
     }
     setIsSynced(true);
   };
@@ -203,6 +204,7 @@ const App: React.FC = () => {
     localStorage.setItem('zen_guest_active', 'true');
   };
 
+  // UI Navigation Logic
   const goToToday = () => {
     setState(prev => ({ ...prev, currentMonth: is2026 ? realWorldMonth : 0 }));
   };
@@ -255,7 +257,7 @@ const App: React.FC = () => {
       const insights = await getCoachInsights(state.habits, currentMonthProgress, currentReflection, state.currentMonth);
       setCoachResponse(insights ?? null); 
     } catch (error) {
-      setCoachResponse("Connection to Zen Coach lost.");
+      setCoachResponse("Coach is taking a breath. Please try again in a moment.");
     } finally {
       setIsCoachLoading(false);
     }
@@ -280,19 +282,19 @@ const App: React.FC = () => {
     }
   };
 
-  // Auth Splash
-  if (isAuthLoading) {
+  // Rendering logic based on Auth State
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="flex h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Finding Your Inner Peace...</p>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">Loading ZenHabit...</p>
         </div>
       </div>
     );
   }
 
-  // Gateway: If not authenticated and not explicitly in guest mode, show LoginPage
+  // If no session exists and user hasn't explicitly chosen Guest Mode, show login
   if (!session && !isGuest) {
     return <LoginPage onGuestMode={handleEnterAsGuest} />;
   }
@@ -340,7 +342,7 @@ const App: React.FC = () => {
         {isDataLoading ? (
            <div className="flex flex-col items-center justify-center py-20 gap-4">
              <div className="w-10 h-10 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Syncing Cloud Habits...</p>
+             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gathering your habits...</p>
            </div>
         ) : (
           <>
@@ -350,7 +352,7 @@ const App: React.FC = () => {
                   <h2 className="text-3xl font-black text-slate-800">{MONTHS[state.currentMonth]} {state.year}</h2>
                 </div>
                 <div className="flex items-center gap-4 mt-1">
-                  <p className="text-slate-500 font-medium flex items-center gap-2"><i className="fa-solid fa-circle text-[6px] text-indigo-400"></i>Building momentum, one day at a time.</p>
+                  <p className="text-slate-500 font-medium flex items-center gap-2"><i className="fa-solid fa-circle text-[6px] text-indigo-400"></i>Progress requires presence.</p>
                   <button onClick={() => setIsHabitModalOpen(true)} className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1.5 px-3 py-1 bg-indigo-50 rounded-full transition-colors"><i className="fa-solid fa-plus"></i>Add Habit</button>
                 </div>
               </div>
@@ -388,16 +390,18 @@ const App: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="bg-emerald-50/50 p-8 rounded-[40px] border border-emerald-100">
                             <h4 className="font-black text-emerald-700 mb-2 text-xs uppercase tracking-widest">Wins</h4>
-                            <p className="text-sm text-slate-700 italic">{currentReflection.wins || "No wins documented."}</p>
+                            <p className="text-sm text-slate-700 italic">{currentReflection.wins || "What did you achieve today?"}</p>
                           </div>
                           <div className="bg-indigo-50/50 p-8 rounded-[40px] border border-indigo-100">
                             <h4 className="font-black text-indigo-700 mb-2 text-xs uppercase tracking-widest">Growth</h4>
-                            <p className="text-sm text-slate-700 italic">{currentReflection.improvements || "No notes yet."}</p>
+                            <p className="text-sm text-slate-700 italic">{currentReflection.improvements || "Where can we improve?"}</p>
                           </div>
                         </div>
                         {coachResponse && (
-                          <div className="bg-slate-900 p-10 rounded-[48px] text-indigo-50 text-sm leading-relaxed">
-                            {coachResponse}
+                          <div className="bg-slate-900 p-10 rounded-[48px] text-indigo-50 text-sm leading-relaxed border-4 border-indigo-500/20 shadow-2xl">
+                            <div className="prose prose-invert prose-indigo prose-sm max-w-none">
+                              {coachResponse}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -407,17 +411,34 @@ const App: React.FC = () => {
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-10 border-t border-slate-200">
                   <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                    <h4 className="font-bold text-slate-800 mb-6"><i className="fa-solid fa-feather-pointed text-indigo-500 mr-2"></i>Reflections</h4>
+                    <h4 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                      <i className="fa-solid fa-feather-pointed text-indigo-500"></i>
+                      Monthly Reflection Zone
+                    </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <textarea className="w-full p-4 rounded-2xl bg-slate-50 text-sm h-32 resize-none" placeholder="What are you proud of?" value={currentReflection.wins} onChange={(e) => handleReflectionChange('wins', e.target.value)} />
-                      <textarea className="w-full p-4 rounded-2xl bg-slate-50 text-sm h-32 resize-none" placeholder="Next level goal?" value={currentReflection.improvements} onChange={(e) => handleReflectionChange('improvements', e.target.value)} />
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Monthly Wins</label>
+                        <textarea className="w-full p-4 rounded-2xl bg-slate-50 text-sm h-32 resize-none focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none border border-transparent focus:border-indigo-200 transition-all" placeholder="What were your biggest successes this month?" value={currentReflection.wins} onChange={(e) => handleReflectionChange('wins', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Improvements for Next Month</label>
+                        <textarea className="w-full p-4 rounded-2xl bg-slate-50 text-sm h-32 resize-none focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none border border-transparent focus:border-indigo-200 transition-all" placeholder="What will you do differently next month?" value={currentReflection.improvements} onChange={(e) => handleReflectionChange('improvements', e.target.value)} />
+                      </div>
                     </div>
                   </div>
-                  <div className="p-8 bg-indigo-600 rounded-[40px] text-white text-center flex flex-col items-center justify-center">
-                    <i className="fa-solid fa-wand-magic-sparkles text-3xl mb-4"></i>
-                    <h4 className="text-xl font-bold mb-4">AI Performance Analysis</h4>
-                    <button onClick={requestCoachInsights} disabled={isCoachLoading} className="w-full py-4 bg-white text-indigo-600 font-black rounded-2xl hover:bg-indigo-50 transition-all">
-                      {isCoachLoading ? 'Thinking...' : 'Get Coach Insights'}
+                  <div className="p-8 bg-indigo-600 rounded-[40px] text-white text-center flex flex-col items-center justify-center shadow-2xl shadow-indigo-200 group">
+                    <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <i className="fa-solid fa-wand-magic-sparkles text-3xl"></i>
+                    </div>
+                    <h4 className="text-xl font-bold mb-2">AI Coach Insights</h4>
+                    <p className="text-xs text-indigo-100 mb-6 font-medium">Get data-driven feedback on your habits using Gemini AI.</p>
+                    <button onClick={requestCoachInsights} disabled={isCoachLoading} className="w-full py-4 bg-white text-indigo-600 font-black rounded-2xl hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-50">
+                      {isCoachLoading ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <i className="fa-solid fa-spinner fa-spin"></i>
+                          Thinking...
+                        </span>
+                      ) : 'Get Personal Analysis'}
                     </button>
                   </div>
                 </div>
