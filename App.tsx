@@ -187,11 +187,11 @@ const App: React.FC = () => {
     setIsCoachLoading(true);
     try {
       const insights = await getCoachInsights(state.habits, currentMonthProgress, currentReflection, state.currentMonth);
-      // FIX: Use nullish coalescing (??) to ensure we never pass 'undefined' to setCoachResponse
+      // Fixed: The ?? null handles the 'undefined' error from your logs
       setCoachResponse(insights ?? null); 
     } catch (error) {
-      console.error("AI Coach failed:", error);
-      setCoachResponse("Coach is currently unavailable. Please check your connection.");
+      console.error("Coach failed:", error);
+      setCoachResponse("Connection to Zen Coach lost. Please check your API key.");
     } finally {
       setIsCoachLoading(false);
     }
