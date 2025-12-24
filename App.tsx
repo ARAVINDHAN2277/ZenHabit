@@ -185,9 +185,16 @@ const App: React.FC = () => {
 
   const requestCoachInsights = async () => {
     setIsCoachLoading(true);
-    const insights = await getCoachInsights(state.habits, currentMonthProgress, currentReflection, state.currentMonth);
-    setCoachResponse(insights);
-    setIsCoachLoading(false);
+    try {
+      const insights = await getCoachInsights(state.habits, currentMonthProgress, currentReflection, state.currentMonth);
+      // FIX: Use nullish coalescing (??) to ensure we never pass 'undefined' to setCoachResponse
+      setCoachResponse(insights ?? null); 
+    } catch (error) {
+      console.error("AI Coach failed:", error);
+      setCoachResponse("Coach is currently unavailable. Please check your connection.");
+    } finally {
+      setIsCoachLoading(false);
+    }
   };
 
   const exportReport = async () => {
